@@ -1,5 +1,6 @@
 services:
   web:
+    image: ${DOCKER_REGISTRY_USER:-paras116255}/adpilot-web:v1.0.0
     build:
       context: .
       dockerfile: Dockerfile
@@ -20,6 +21,7 @@ services:
         condition: service_started
 
   worker:
+    image: ${DOCKER_REGISTRY_USER:-paras116255}/adpilot-worker:v1.0.0
     build:
       context: .
       dockerfile: Dockerfile
