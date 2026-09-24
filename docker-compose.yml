@@ -12,9 +12,12 @@ services:
       - ENCRYPTION_KEY=adpilot_meta_token_encryption_key_32bytes
       - USE_MOCK_META_API=true
       - AI_PROVIDER=mock
+      - APP_VERSION=v1.0.0
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   worker:
     build:
@@ -26,9 +29,12 @@ services:
       - REDIS_URL=redis://redis:6379
       - USE_MOCK_META_API=true
       - AI_PROVIDER=mock
+      - APP_VERSION=v1.0.0
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   postgres:
     image: postgres:15-alpine
@@ -42,6 +48,11 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U adpilot -d adpilot_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
