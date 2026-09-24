@@ -1,0 +1,449 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                   String               @id @default(uuid())
+  email                String               @unique
+  name                 String
+  passwordHash         String
+  avatarUrl            String?
+  role                 String               @default("ADMIN") // System level
+  mfaEnabled           Boolean              @default(false)
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  memberships          OrganizationMember[]
+  auditLogs            AuditLog[]
+  notifications        Notification[]
+  watchlists           Watchlist[]
+}
+
+model Organization {
+  id                   String               @id @default(uuid())
+  name                 String
+  slug                 String               @unique
+  timezone             String               @default("Asia/Kolkata")
+  currency             String               @default("INR")
+  plan                 String               @default("PRO") // FREE, STARTER, PRO, ENTERPRISE
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  members              OrganizationMember[]
+  metaConnections      MetaConnection[]
+  metaBusinesses       MetaBusiness[]
+  metaAdAccounts       MetaAdAccount[]
+  campaigns            Campaign[]
+  adSets               AdSet[]
+  ads                  Ad[]
+  adCreatives          AdCreative[]
+  adInsights           AdInsight[]
+  comments             Comment[]
+  automationRules      AutomationRule[]
+  automationExecutions AutomationExecution[]
+  aiProjects           AIProject[]
+  aiGenerations        AIGeneration[]
+  watchlists           Watchlist[]
+  auditLogs            AuditLog[]
+  notifications        Notification[]
+  subscriptions        Subscription[]
+}
+
+model OrganizationMember {
+  id             String       @id @default(uuid())
+  organizationId String
+  userId         String
+  role           String       @default("ADMIN") // OWNER, ADMIN, MANAGER, ANALYST, VIEWER
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+}
+
+model MetaConnection {
+  id                   String         @id @default(uuid())
+  organizationId       String
+  metaUserId           String
+  metaUserName         String
+  accessTokenEncrypted String
+  expiresAt            DateTime
+  status               String         @default("ACTIVE") // ACTIVE, EXPIRED, REVOKED
+  lastSyncedAt         DateTime?
+  createdAt            DateTime       @default(now())
+
+  organization         Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businesses           MetaBusiness[]
+}
+
+model MetaBusiness {
+  id                String          @id @default(uuid())
+  organizationId    String
+  metaConnectionId  String
+  metaBusinessId    String          @unique
+  name              String
+  verificationStatus String         @default("VERIFIED")
+
+  organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  metaConnection    MetaConnection  @relation(fields: [metaConnectionId], references: [id], onDelete: Cascade)
+  adAccounts        MetaAdAccount[]
+}
+
+model MetaAdAccount {
+  id             String       @id @default(uuid())
+  organizationId String
+  businessId     String?
+  metaAccountId  String       @unique
+  name           String
+  currency       String       @default("INR")
+  timezone       String       @default("Asia/Kolkata")
+  status         String       @default("ACTIVE")
+  spendCap       Int          @default(0) // Minor units or integer cents/paise
+  amountSpent    Int          @default(0)
+  lastSyncedAt   DateTime?
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  business       MetaBusiness? @relation(fields: [businessId], references: [id], onDelete: SetNull)
+  campaigns      Campaign[]
+  ads            Ad[]
+  insights       AdInsight[]
+}
+
+model Campaign {
+  id             String       @id @default(uuid())
+  organizationId String
+  adAccountId    String
+  metaCampaignId String       @unique
+  name           String
+  status         String       @default("ACTIVE") // ACTIVE, PAUSED, ARCHIVED
+  effectiveStatus String      @default("ACTIVE")
+  objective      String       @default("OUTCOME_LEADS")
+  dailyBudget    Int          @default(0) // Minor units
+  lifetimeBudget Int          @default(0)
+  spend          Int          @default(0)
+  impressions    Int          @default(0)
+  reach          Int          @default(0)
+  clicks         Int          @default(0)
+  ctr            Float        @default(0)
+  cpc            Float        @default(0)
+  cpm            Float        @default(0)
+  conversions    Int          @default(0)
+  roas           Float        @default(0)
+  lastSyncedAt   DateTime?
+  createdAt      DateTime     @default(now())
+
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  adAccount      MetaAdAccount @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  adSets         AdSet[]
+  ads            Ad[]
+  insights       AdInsight[]
+}
+
+model AdSet {
+  id             String       @id @default(uuid())
+  organizationId String
+  campaignId     String
+  metaAdSetId    String       @unique
+  name           String
+  status         String       @default("ACTIVE")
+  effectiveStatus String      @default("ACTIVE")
+  dailyBudget    Int          @default(0)
+  lifetimeBudget Int          @default(0)
+  targetingJson  String       @default("{}")
+  spend          Int          @default(0)
+  impressions    Int          @default(0)
+  reach          Int          @default(0)
+  clicks         Int          @default(0)
+  ctr            Float        @default(0)
+  cpc            Float        @default(0)
+  cpm            Float        @default(0)
+  conversions    Int          @default(0)
+  roas           Float        @default(0)
+  lastSyncedAt   DateTime?
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  campaign       Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  ads            Ad[]
+  insights       AdInsight[]
+}
+
+model Ad {
+  id               String       @id @default(uuid())
+  organizationId   String
+  adAccountId      String
+  campaignId       String
+  adSetId          String
+  metaAdId         String       @unique
+  name             String
+  status           String       @default("ACTIVE") // ACTIVE, PAUSED, ARCHIVED, REJECTED
+  effectiveStatus  String       @default("ACTIVE")
+  configuredStatus String       @default("ACTIVE")
+  dailyBudget      Int          @default(0)
+  lifetimeBudget   Int          @default(0)
+  spend            Int          @default(0) // In minor units (paise/cents)
+  impressions      Int          @default(0)
+  reach            Int          @default(0)
+  clicks           Int          @default(0)
+  ctr              Float        @default(0)
+  cpc              Float        @default(0)
+  cpm              Float        @default(0)
+  conversions      Int          @default(0)
+  cpa              Float        @default(0)
+  roas             Float        @default(0)
+  creativeId       String?
+  lastSyncedAt     DateTime?
+  createdAt        DateTime     @default(now())
+
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  adAccount        MetaAdAccount @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  campaign         Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  adSet            AdSet        @relation(fields: [adSetId], references: [id], onDelete: Cascade)
+  creative         AdCreative?  @relation(fields: [creativeId], references: [id], onDelete: SetNull)
+
+  comments         Comment[]
+  insights         AdInsight[]
+  automationRules  AutomationRule[]
+  executions       AutomationExecution[]
+}
+
+model AdCreative {
+  id             String       @id @default(uuid())
+  organizationId String
+  metaCreativeId String?
+  name           String
+  title          String
+  body           String
+  description    String?
+  callToAction   String       @default("LEARN_MORE")
+  imageUrl       String?
+  videoUrl       String?
+  linkUrl        String?
+  format         String       @default("IMAGE") // IMAGE, VIDEO, CAROUSEL
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ads            Ad[]
+}
+
+model AdInsight {
+  id             String       @id @default(uuid())
+  organizationId String
+  adAccountId    String
+  campaignId     String?
+  adSetId        String?
+  adId           String?
+  date           String       // YYYY-MM-DD
+  spend          Int          @default(0)
+  impressions    Int          @default(0)
+  reach          Int          @default(0)
+  clicks         Int          @default(0)
+  ctr            Float        @default(0)
+  cpc            Float        @default(0)
+  cpm            Float        @default(0)
+  conversions    Int          @default(0)
+  cpa            Float        @default(0)
+  roas           Float        @default(0)
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  adAccount      MetaAdAccount @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  campaign       Campaign?    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  adSet          AdSet?       @relation(fields: [adSetId], references: [id], onDelete: Cascade)
+  ad             Ad?          @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@unique([adAccountId, date, adId])
+}
+
+model Comment {
+  id             String       @id @default(uuid())
+  organizationId String
+  adId           String
+  metaCommentId  String       @unique
+  authorName     String
+  authorAvatar   String?
+  text           String
+  sentiment      String       @default("NEUTRAL") // POSITIVE, NEUTRAL, NEGATIVE
+  category       String       @default("OTHER") // QUESTION, PURCHASE_INTENT, COMPLAINT, SPAM, REFUND, PRICING
+  purchaseIntent String       @default("LOW") // HIGH, MEDIUM, LOW
+  status         String       @default("UNREAD") // UNREAD, REVIEWED, REPLIED, HIDDEN, DELETED
+  isHidden       Boolean      @default(false)
+  isDeleted      Boolean      @default(false)
+  replyText      String?
+  repliedAt      DateTime?
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ad             Ad           @relation(fields: [adId], references: [id], onDelete: Cascade)
+}
+
+model AutomationRule {
+  id              String       @id @default(uuid())
+  organizationId  String
+  name            String
+  adId            String?      // Null means applies to all ads in org
+  ruleType        String       @default("BUDGET_SPEND_THRESHOLD") // SPEND_THRESHOLD, CPA_THRESHOLD, ROAS_THRESHOLD, CTR_THRESHOLD
+  metricType      String       @default("SPEND") // SPEND, CPA, ROAS, CTR
+  condition       String       @default("GREATER_THAN_EQUAL") // GREATER_THAN_EQUAL, LESS_THAN_EQUAL
+  thresholdValue  Float        @default(5000) // Value in minor units or percentage/ratio
+  action          String       @default("PAUSE_AD") // PAUSE_AD, NOTIFY_ONLY
+  isEnabled       Boolean      @default(true)
+  cooldownMinutes Int          @default(60)
+  lastTriggeredAt DateTime?
+  createdAt       DateTime     @default(now())
+
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ad              Ad?          @relation(fields: [adId], references: [id], onDelete: Cascade)
+  executions      AutomationExecution[]
+}
+
+model AutomationExecution {
+  id             String         @id @default(uuid())
+  organizationId String
+  ruleId         String
+  adId           String
+  triggeredBy    String         @default("SPEND_THRESHOLD_REACHED")
+  actionTaken    String         @default("PAUSED_AD")
+  status         String         @default("SUCCESS") // SUCCESS, FAILED
+  details        String         @default("{}")
+  executedAt     DateTime       @default(now())
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  rule           AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  ad             Ad             @relation(fields: [adId], references: [id], onDelete: Cascade)
+}
+
+model AIProject {
+  id             String         @id @default(uuid())
+  organizationId String
+  name           String
+  description    String
+  targetCountry  String         @default("US")
+  targetAudience String         @default("Broad Adults 25-54")
+  language       String         @default("English")
+  objective      String         @default("CONVERSIONS")
+  brandTone      String         @default("Direct Response & Energetic")
+  status         String         @default("DRAFT") // DRAFT, GENERATED, REVIEWED, PUBLISHED
+  createdAt      DateTime       @default(now())
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  generations    AIGeneration[]
+}
+
+model AIGeneration {
+  id                String       @id @default(uuid())
+  organizationId    String
+  projectId         String
+  conceptName       String
+  primaryText       String
+  headline          String
+  description       String?
+  callToAction      String       @default("SHOP_NOW")
+  imageUrl          String?
+  videoScript       String?
+  complianceStatus  String       @default("PASS") // PASS, WARNING, REVIEW_REQUIRED
+  complianceDetails String       @default("[]")
+  publishedMetaAdId String?
+  createdAt         DateTime     @default(now())
+
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project           AIProject    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model TrendProduct {
+  id             String       @id @default(uuid())
+  name           String
+  category       String
+  country        String       @default("US")
+  brand          String
+  landingPageUrl String
+  imageUrl       String
+  adCount        Int          @default(1)
+  creativeCount  Int          @default(1)
+  trendScore     Int          @default(85) // 0-100 score based on ad count growth and persistence
+  trendVelocity  String       @default("EXPLOSIVE") // EXPLOSIVE, STEADY, HIGH
+  source         String       @default("Meta Ad Library")
+  createdAt      DateTime     @default(now())
+
+  trendAds       TrendAd[]
+}
+
+model TrendAd {
+  id             String       @id @default(uuid())
+  trendProductId String
+  title          String
+  brandName      String
+  headline       String
+  bodyText       String
+  ctaText        String       @default("Shop Now")
+  creativeType   String       @default("VIDEO")
+  creativeUrl    String
+  pageUrl        String
+  country        String       @default("US")
+  durationDays   Int          @default(14)
+  hookAnalysis   String?
+  createdAt      DateTime     @default(now())
+
+  trendProduct   TrendProduct @relation(fields: [trendProductId], references: [id], onDelete: Cascade)
+}
+
+model Watchlist {
+  id             String       @id @default(uuid())
+  organizationId String
+  userId         String
+  name           String
+  type           String       @default("PRODUCT") // PRODUCT, BRAND, AD
+  targetId       String?
+  keywords       String       @default("")
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id             String       @id @default(uuid())
+  organizationId String
+  userId         String?
+  userName       String       @default("System / Worker")
+  action         String
+  objectType     String
+  objectId       String
+  details        String       @default("{}")
+  ipAddress      String?      @default("127.0.0.1")
+  result         String       @default("SUCCESS")
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model Notification {
+  id             String       @id @default(uuid())
+  organizationId String
+  userId         String?
+  title          String
+  message        String
+  type           String       @default("INFO") // INFO, WARNING, CRITICAL, SUCCESS
+  isRead         Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model Subscription {
+  id             String       @id @default(uuid())
+  organizationId String
+  plan           String       @default("PRO")
+  status         String       @default("ACTIVE")
+  currentPeriodEnd DateTime   @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
